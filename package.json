@@ -1,0 +1,38 @@
+{
+  "name": "kirana-ops-agent",
+  "version": "0.1.0",
+  "description": "Telegram-native agent that runs an Indian kirana store — inventory, GST billing, khata credit, invoices, analysis decks.",
+  "main": "dist/index.js",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/index.js",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:seed": "tsx prisma/seed.ts",
+    "prisma:studio": "prisma studio",
+    "setup": "prisma generate && prisma migrate dev --name init && tsx prisma/seed.ts"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
+  },
+  "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.1.0",
+    "@google/genai": "^2.21.0",
+    "@prisma/client": "^5.20.0",
+    "dotenv": "^16.4.5",
+    "grammy": "^1.30.0",
+    "pdfkit": "^0.15.0",
+    "pptxgenjs": "^3.12.0",
+    "zod": "^3.23.8",
+    "zod-to-json-schema": "^3.25.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.5.0",
+    "@types/pdfkit": "^0.13.4",
+    "prisma": "^5.20.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.2"
+  }
+}

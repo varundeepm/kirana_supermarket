@@ -1,0 +1,10 @@
+node_modules/
+dist/
+.env
+generated/
+prisma/dev.db
+prisma/dev.db-journal
+prisma/dev.db-wal
+prisma/dev.db-shm
+*.js.map
+*.tsbuildinfo
