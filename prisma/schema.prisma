@@ -1,0 +1,137 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  // Switch to "postgresql" + real DATABASE_URL for production (Railway/Render)
+  // Keep "sqlite" + file:./dev.db for zero-setup local development
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ---- Catalog -------------------------------------------------------------
+
+model Product {
+  id            String   @id @default(cuid())
+  name          String // "Aashirvaad Atta 5kg", "Sugar (loose)"
+  brand         String?
+  sku           String   @unique
+  hsnCode       String
+  gstRate       Float // 0, 5, 12, 18 ...
+  unit          String // kg | g | l | ml | packet | dozen | piece
+  isLoose       Boolean  @default(false)
+  costPrice     Float // last known cost price
+  sellPrice     Float // MRP / sell price
+  stockQty      Float    @default(0)
+  reorderLevel  Float    @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  stockIns  StockIn[]
+  billItems BillItem[]
+}
+
+model StockIn {
+  id          String   @id @default(cuid())
+  productId   String
+  product     Product  @relation(fields: [productId], references: [id])
+  qty         Float
+  costPrice   Float
+  mrp         Float
+  receivedAt  DateTime @default(now())
+}
+
+// ---- Customers & khata (credit ledger) -----------------------------------
+
+model Customer {
+  id            String             @id @default(cuid())
+  name          String
+  phone         String?
+  createdAt     DateTime           @default(now())
+
+  bills         Bill[]
+  khataEntries  KhataTransaction[]
+
+  @@unique([name, phone])
+}
+
+// type: CREDIT = amount owed increases (goods given on credit)
+//       PAYMENT = amount owed decreases (customer settled cash/UPI)
+model KhataTransaction {
+  id          String   @id @default(cuid())
+  customerId  String
+  customer    Customer @relation(fields: [customerId], references: [id])
+  type        String
+  amount      Float
+  note        String?
+  createdAt   DateTime @default(now())
+}
+
+// ---- Billing ---------------------------------------------------------------
+
+// status: DRAFT (being built over multiple chat turns) -> FINALIZED (stock
+// decremented, immutable) or VOID
+model Bill {
+  id              String     @id @default(cuid())
+  status          String     @default("DRAFT")
+  customerId      String?
+  customer        Customer?  @relation(fields: [customerId], references: [id])
+  paymentMode     String? // CASH | UPI | CARD | CREDIT
+  paymentRef      String?
+  subtotal        Float      @default(0)
+  cgst            Float      @default(0)
+  sgst            Float      @default(0)
+  roundOff        Float      @default(0)
+  total           Float      @default(0)
+  // idempotency: the tool that finalizes a bill is called with a caller-
+  // supplied key (derived from the Telegram update id). A retried finalize
+  // for the same key returns the already-finalized bill instead of
+  // double-decrementing stock.
+  idempotencyKey  String?    @unique
+  chatId          String // which Telegram chat this bill belongs to (multi-turn build)
+  createdAt       DateTime   @default(now())
+  finalizedAt     DateTime?
+
+  items BillItem[]
+}
+
+model BillItem {
+  id           String  @id @default(cuid())
+  billId       String
+  bill         Bill    @relation(fields: [billId], references: [id], onDelete: Cascade)
+  productId    String
+  product      Product @relation(fields: [productId], references: [id])
+  qty          Float
+  unitPrice    Float
+  gstRate      Float
+  lineSubtotal Float
+  lineCgst     Float
+  lineSgst     Float
+  lineTotal    Float
+}
+
+// ---- Standing preferences (memory outside the context window) ------------
+
+model Preference {
+  id        String   @id @default(cuid())
+  key       String   @unique // e.g. "default_payment_mode", "default_atta", "shop_name"
+  value     String // JSON-stringified
+  updatedAt DateTime @updatedAt
+}
+
+// ---- Telegram idempotency --------------------------------------------------
+
+model TelegramUpdateLog {
+  updateId    Int      @id
+  processedAt DateTime @default(now())
+}
+
+// Maps a Telegram chat to its Claude Agent SDK session id, so a multi-turn
+// conversation (mid-build bill, a pending clarifying question) survives a
+// bot process restart via query()'s `resume` option — not just an
+// in-memory Map.
+model ChatSession {
+  chatId    String   @id
+  sessionId String   @unique
+  updatedAt DateTime @updatedAt
+}
